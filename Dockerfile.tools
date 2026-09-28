@@ -1,0 +1,12 @@
+# 可选镜像：只为了在没有 Python 的机器上（比如 NAS）跑数据同步脚本。
+# 播放器本身完全不需要它。
+FROM python:3.12-alpine
+
+# 抓 B 站接口要走 HTTPS。
+RUN apk add --no-cache ca-certificates
+
+WORKDIR /app
+
+# 源码不 COPY 进来 —— 由 compose 把整个项目目录挂到 /app，
+# 这样脚本改完立即生效，不用重建镜像。
+CMD ["python", "check_sync.py"]

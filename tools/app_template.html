@@ -1,0 +1,836 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>RAZ 磨耳朵</title>
+<style>
+/* ---------- design tokens (validated palette: see tools/README) ---------- */
+:root{
+  color-scheme: light;
+  --page:#f9f9f7; --surface:#fcfcfb; --surface-2:#f2f1ec;
+  --ink:#0b0b0b; --ink-2:#52514e; --ink-muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --hair:rgba(11,11,11,.10);
+  /* difficulty bands - categorical slots 1..4, fixed order, never cycled */
+  --band-1:#2a78d6; --band-2:#eb6834; --band-3:#1baf7a; --band-4:#eda100;
+  /* sequential blue ramp */
+  --seq-1:#cde2fb; --seq-2:#9ec5f4; --seq-3:#5598e7; --seq-4:#2a78d6; --seq-5:#1c5cab;
+  --empty:#eceae4;
+  --good:#0ca30c; --warn:#fab219;
+  --shadow:0 1px 2px rgba(11,11,11,.06),0 8px 24px rgba(11,11,11,.06);
+  --r-lg:22px; --r-md:16px; --r-sm:10px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --page:#0d0d0d; --surface:#1a1a19; --surface-2:#232322;
+    --ink:#ffffff; --ink-2:#c3c2b7; --ink-muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --hair:rgba(255,255,255,.10);
+    --band-1:#3987e5; --band-2:#d95926; --band-3:#199e70; --band-4:#c98500;
+    --seq-1:#184f95; --seq-2:#256abf; --seq-3:#2a78d6; --seq-4:#5598e7; --seq-5:#86b6ef;
+    --empty:#2c2c2a;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --page:#0d0d0d; --surface:#1a1a19; --surface-2:#232322;
+  --ink:#ffffff; --ink-2:#c3c2b7; --ink-muted:#898781;
+  --grid:#2c2c2a; --axis:#383835; --hair:rgba(255,255,255,.10);
+  --band-1:#3987e5; --band-2:#d95926; --band-3:#199e70; --band-4:#c98500;
+  --seq-1:#184f95; --seq-2:#256abf; --seq-3:#2a78d6; --seq-4:#5598e7; --seq-5:#86b6ef;
+  --empty:#2c2c2a;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--page); color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+  -webkit-text-size-adjust:100%;
+  padding:0 0 env(safe-area-inset-bottom,0);
+}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+.tnum{font-variant-numeric:tabular-nums}
+
+/* ---------- shell ---------- */
+.wrap{max-width:1180px;margin:0 auto;padding:0 18px 40px}
+header.top{
+  position:sticky;top:0;z-index:30;background:var(--page);
+  padding:calc(10px + env(safe-area-inset-top,0px)) 0 10px;
+}
+.topbar{display:flex;align-items:center;gap:12px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px;letter-spacing:.2px}
+.brand .dot{width:34px;height:34px;border-radius:11px;background:var(--band-1);
+  display:grid;place-items:center;color:#fff;font-size:17px;font-weight:900}
+.spacer{flex:1}
+.iconbtn{
+  width:52px;height:52px;border-radius:16px;background:var(--surface);
+  border:1px solid var(--hair);display:grid;place-items:center;font-size:22px;
+  transition:transform .12s ease, background .12s ease;
+}
+.iconbtn:hover{background:var(--surface-2)}
+.iconbtn:active{transform:scale(.94)}
+
+/* ---------- hero: continue listening ---------- */
+.hero{
+  display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+  background:var(--surface);border:1px solid var(--hair);border-radius:var(--r-lg);
+  padding:18px;margin:6px 0 22px;box-shadow:var(--shadow);
+}
+.playbig{
+  display:flex;align-items:center;gap:14px;background:var(--band-1);color:#fff;
+  border-radius:var(--r-md);padding:16px 26px;font-weight:800;font-size:22px;
+  box-shadow:0 6px 18px rgba(42,120,214,.28);transition:transform .12s ease;
+}
+.playbig:active{transform:scale(.97)}
+.playbig svg{width:34px;height:34px}
+.hero-meta{min-width:0}
+.hero-meta .lbl{font-size:13px;color:var(--ink-muted);font-weight:700;letter-spacing:.4px}
+.hero-meta .val{font-size:19px;font-weight:800;margin-top:2px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;max-width:52vw}
+.today{
+  margin-left:auto;text-align:right;background:var(--surface-2);
+  border-radius:var(--r-md);padding:10px 18px;
+}
+.today .n{font-size:30px;font-weight:900;line-height:1;color:var(--band-1)}
+.today .u{font-size:13px;color:var(--ink-2);font-weight:700;margin-top:4px}
+
+/* ---------- band + level grid ---------- */
+.band{margin:26px 0 10px;display:flex;align-items:baseline;gap:12px}
+.band h2{margin:0;font-size:17px;font-weight:900}
+.band .rule{height:8px;width:44px;border-radius:99px}
+.band .sub{font-size:13px;color:var(--ink-muted);font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:12px}
+.lv{
+  position:relative;background:var(--surface);border:1px solid var(--hair);
+  border-radius:var(--r-md);padding:14px 14px 12px;text-align:left;
+  transition:transform .12s ease,box-shadow .12s ease;overflow:hidden;
+}
+.lv:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.lv:active{transform:scale(.98)}
+.lv .tint{position:absolute;inset:0 0 auto 0;height:6px;background:var(--c)}
+.lv .letter{font-size:34px;font-weight:900;line-height:1.05;color:var(--c);margin-top:6px}
+.lv .letter.sm{font-size:27px}
+.lv .cnt{font-size:13px;color:var(--ink-2);font-weight:700;margin-top:6px}
+.lv .bar{height:7px;border-radius:99px;background:var(--grid);margin-top:9px;overflow:hidden}
+.lv .bar i{display:block;height:100%;background:var(--c);border-radius:99px}
+.lv .pct{font-size:12px;color:var(--ink-muted);font-weight:700;margin-top:5px}
+
+/* ---------- book grid ---------- */
+.lvhead{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:8px 0 16px}
+.lvbadge{width:74px;height:74px;border-radius:20px;background:var(--c);
+  color:#fff;display:grid;place-items:center;font-size:30px;font-weight:900}
+.lvhead .info h1{margin:0;font-size:22px;font-weight:900}
+.lvhead .info p{margin:5px 0 0;color:var(--ink-2);font-size:14px;font-weight:600}
+.books{display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:11px}
+.bk{
+  display:flex;gap:11px;align-items:center;text-align:left;
+  background:var(--surface);border:1px solid var(--hair);border-radius:var(--r-md);
+  padding:12px;transition:transform .12s ease,box-shadow .12s ease;
+}
+.bk:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.bk:active{transform:scale(.98)}
+.bk .no{
+  flex:0 0 auto;width:44px;height:44px;border-radius:13px;background:var(--surface-2);
+  display:grid;place-items:center;font-weight:900;font-size:15px;color:var(--ink-2);
+}
+.bk.done .no{background:var(--band-3);color:#fff}
+.bk .tx{min-width:0;flex:1}
+.bk .tx b{display:block;font-size:14.5px;font-weight:700;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bk .tx span{font-size:12px;color:var(--ink-muted);font-weight:600}
+.bk .st{flex:0 0 auto;font-size:17px;opacity:.25;padding:4px}
+.bk .st.on{opacity:1}
+
+/* ---------- player ---------- */
+.stage{background:#000;border-radius:var(--r-lg);overflow:hidden;position:relative;
+  width:100%;aspect-ratio:16/9;border:1px solid var(--hair)}
+.stage iframe{width:100%;height:100%;border:0;display:block}
+.stage.mini{position:fixed;right:16px;bottom:16px;width:300px;aspect-ratio:16/9;
+  z-index:60;box-shadow:0 12px 40px rgba(0,0,0,.5);border-radius:var(--r-md)}
+.nowhead{display:flex;align-items:center;gap:12px;margin:14px 0 4px;flex-wrap:wrap}
+.nowhead .pill{background:var(--c);color:#fff;font-weight:900;font-size:15px;
+  padding:6px 14px;border-radius:99px}
+.nowhead h1{margin:0;font-size:clamp(18px,3.4vw,26px);font-weight:900;flex:1;min-width:0}
+.timerbar{height:9px;border-radius:99px;background:var(--grid);overflow:hidden;margin:12px 0 6px}
+.timerbar i{display:block;height:100%;background:var(--c);width:0;border-radius:99px}
+.timerinfo{display:flex;justify-content:space-between;font-size:13px;
+  color:var(--ink-muted);font-weight:700}
+.controls{display:flex;align-items:center;justify-content:center;gap:16px;margin:20px 0;
+  flex-wrap:wrap}
+.cbtn{
+  display:grid;place-items:center;background:var(--surface);border:1px solid var(--hair);
+  border-radius:50%;width:76px;height:76px;transition:transform .12s ease
+}
+.cbtn:hover{background:var(--surface-2)}
+.cbtn:active{transform:scale(.93)}
+.cbtn svg{width:34px;height:34px;fill:var(--ink)}
+.cbtn.main{width:104px;height:104px;background:var(--c);border-color:transparent}
+.cbtn.main svg{width:46px;height:46px;fill:#fff}
+.cbtn.wide{width:auto;height:76px;border-radius:38px;padding:0 26px;gap:11px;
+  font-weight:800;font-size:17px;grid-auto-flow:column}
+.cbtn.wide svg{width:26px;height:26px}
+.rowtools{display:flex;gap:11px;justify-content:center;flex-wrap:wrap;margin-bottom:8px}
+.switch{display:flex;align-items:center;gap:10px;background:var(--surface);
+  border:1px solid var(--hair);border-radius:99px;padding:11px 20px;font-weight:800;font-size:15px}
+.switch .knob{width:46px;height:27px;border-radius:99px;background:var(--axis);
+  position:relative;transition:background .18s ease}
+.switch .knob i{position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;
+  background:#fff;transition:transform .18s ease}
+.switch.on{background:var(--band-3);border-color:transparent;color:#fff}
+.switch.on .knob{background:rgba(255,255,255,.35)}
+.switch.on .knob i{transform:translateX(19px)}
+
+/* ---------- stats ---------- */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:12px;margin:8px 0 22px}
+.tile{background:var(--surface);border:1px solid var(--hair);border-radius:var(--r-lg);padding:18px}
+.tile .k{font-size:13px;color:var(--ink-muted);font-weight:800;letter-spacing:.4px}
+.tile .v{font-size:36px;font-weight:900;line-height:1.1;margin-top:6px}
+.tile .s{font-size:12.5px;color:var(--ink-2);font-weight:600;margin-top:3px}
+.card{background:var(--surface);border:1px solid var(--hair);border-radius:var(--r-lg);
+  padding:20px;margin-bottom:18px}
+.card h3{margin:0 0 4px;font-size:16px;font-weight:900}
+.card .cap{margin:0 0 16px;font-size:13px;color:var(--ink-muted);font-weight:600}
+/* bar chart */
+.bars{position:relative;display:flex;align-items:flex-end;gap:4px;height:180px;
+  border-bottom:1px solid var(--axis);margin-bottom:26px}
+.bars .gl{position:absolute;left:0;right:0;height:1px;background:var(--grid);z-index:0}
+.bars .ymax{position:absolute;left:0;top:-4px;font-size:11px;color:var(--ink-muted);
+  font-weight:700;font-variant-numeric:tabular-nums;z-index:2}
+.bars .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;
+  align-items:center;height:100%;position:relative;z-index:1}
+.bars .col .b{width:100%;max-width:46px;background:var(--seq-4);border-radius:4px 4px 0 0;
+  min-height:3px;transition:height .3s ease}
+.bars .col.zero .b{background:var(--axis)}   /* a visible tick per empty day */
+.bars .col .d{position:absolute;top:100%;margin-top:7px;font-size:11px;
+  color:var(--ink-muted);font-weight:700;white-space:nowrap}
+.bars .col:hover .b{filter:brightness(1.12)}
+/* heatmap */
+.heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,1fr);gap:3px;
+  overflow-x:auto;padding-bottom:6px}
+.heat i{width:14px;height:14px;border-radius:3.5px;background:var(--empty);display:block}
+.legend{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-muted);
+  font-weight:700;margin-top:12px}
+.legend i{width:14px;height:14px;border-radius:3.5px;display:block}
+/* level progress rows (doubles as the accessible table view) */
+.lrows{display:flex;flex-direction:column;gap:9px}
+.lrow{display:flex;align-items:center;gap:12px}
+.lrow .nm{width:44px;font-weight:900;font-size:15px;color:var(--c);flex:0 0 auto}
+.lrow .tr{flex:1;height:14px;background:var(--grid);border-radius:99px;overflow:hidden}
+.lrow .tr i{display:block;height:100%;background:var(--c);border-radius:99px}
+.lrow .n{width:96px;text-align:right;font-size:13px;color:var(--ink-2);font-weight:700;flex:0 0 auto}
+/* tooltip */
+#tip{position:fixed;z-index:99;pointer-events:none;background:var(--ink);color:var(--page);
+  font-size:12.5px;font-weight:700;padding:7px 11px;border-radius:9px;opacity:0;
+  transition:opacity .12s ease;white-space:nowrap}
+#tip.on{opacity:1}
+
+.backbtn{display:inline-flex;align-items:center;gap:9px;background:var(--surface);
+  border:1px solid var(--hair);border-radius:99px;padding:11px 20px;font-weight:800;
+  font-size:15px;margin-bottom:6px}
+.backbtn:active{transform:scale(.97)}
+.hint{font-size:13px;color:var(--ink-muted);font-weight:600;text-align:center;margin:10px 0 0}
+.src{font-size:12.5px;color:var(--ink-muted);font-weight:600;margin-top:14px;line-height:1.7}
+.src a{color:var(--band-1)}
+.empty-note{color:var(--ink-muted);font-weight:700;padding:20px 0;text-align:center}
+.screen{display:none}
+.screen.on{display:block}
+@media (max-width:560px){
+  .wrap{padding:0 13px 30px}
+  .cbtn{width:64px;height:64px}.cbtn svg{width:28px;height:28px}
+  .cbtn.main{width:88px;height:88px}.cbtn.main svg{width:38px;height:38px}
+  .today{margin-left:0;width:100%;text-align:left}
+  .hero-meta .val{max-width:100%}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="topbar">
+      <div class="brand"><span class="dot">R</span><span>RAZ 磨耳朵</span></div>
+      <span class="spacer"></span>
+      <button class="iconbtn" id="btnTheme" title="切换白天/夜晚">🌙</button>
+      <button class="iconbtn" id="btnStats" title="看看听了多久">📊</button>
+    </div>
+  </header>
+
+  <!-- ============ HOME ============ -->
+  <section class="screen on" id="scHome">
+    <div class="hero">
+      <button class="playbig" id="btnResume">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        <span id="resumeLabel">开始听</span>
+      </button>
+      <div class="hero-meta">
+        <div class="lbl">上次听到</div>
+        <div class="val" id="lastLabel">还没开始，从 AA 开始吧</div>
+      </div>
+      <div class="today">
+        <div class="n tnum" id="todayMin">0</div>
+        <div class="u">今天已听（分钟）</div>
+      </div>
+    </div>
+    <div id="bands"></div>
+    <p class="src" id="srcNote"></p>
+  </section>
+
+  <!-- ============ LEVEL ============ -->
+  <section class="screen" id="scLevel">
+    <button class="backbtn" data-go="home">← 回到首页</button>
+    <div class="lvhead">
+      <div class="lvbadge" id="lvBadge">AA</div>
+      <div class="info">
+        <h1 id="lvTitle">AA 级</h1>
+        <p id="lvSub"></p>
+      </div>
+    </div>
+    <div class="books" id="books"></div>
+  </section>
+
+  <!-- ============ PLAYER ============ -->
+  <section class="screen" id="scPlayer">
+    <div class="stage" id="stage"><iframe id="frame" allow="autoplay; fullscreen"
+      allowfullscreen scrolling="no" frameborder="0"></iframe></div>
+    <div class="nowhead">
+      <span class="pill" id="pLevel">AA</span>
+      <h1 id="pTitle">—</h1>
+      <button class="iconbtn" id="btnStar" title="收藏这本">☆</button>
+      <button class="iconbtn" id="btnMini" title="小窗">🗗</button>
+    </div>
+    <div class="timerbar"><i id="tBar"></i></div>
+    <div class="timerinfo">
+      <span id="tPos">第 0 / 0 本</span>
+      <span id="tNext">自动连播：开</span>
+    </div>
+    <div class="controls">
+      <button class="cbtn" id="btnPrev" title="上一本">
+        <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg></button>
+      <button class="cbtn main" id="btnPlay" title="播放/暂停">
+        <svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg></button>
+      <button class="cbtn" id="btnNext" title="下一本">
+        <svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></button>
+    </div>
+    <div class="rowtools">
+      <button class="switch on" id="swAuto"><span class="knob"><i></i></span>自动连播</button>
+      <button class="cbtn wide" data-go="level">
+        <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>书目</button>
+      <button class="cbtn wide" data-go="home">
+        <svg viewBox="0 0 24 24"><path d="M12 3l9 8h-3v9h-5v-6h-2v6H6v-9H3z"/></svg>首页</button>
+    </div>
+    <p class="hint">播放器由 B 站提供 · 用你自己的账号可看高清</p>
+    <p class="hint"><a id="openBili" href="#" target="_blank" rel="noopener">在 B 站打开这一集 ↗</a></p>
+  </section>
+
+  <!-- ============ STATS ============ -->
+  <section class="screen" id="scStats">
+    <button class="backbtn" data-go="home">← 回到首页</button>
+    <div class="tiles" id="tiles"></div>
+    <div class="card">
+      <h3>最近 14 天</h3>
+      <p class="cap" id="barCap">每天听英语的分钟数</p>
+      <div class="bars" id="bars"></div>
+    </div>
+    <div class="card">
+      <h3>打卡日历</h3>
+      <p class="cap">最近 12 周，颜色越深听得越多</p>
+      <div class="heat" id="heat"></div>
+      <div class="legend">
+        <span>少</span>
+        <i style="background:var(--empty)"></i><i style="background:var(--seq-1)"></i>
+        <i style="background:var(--seq-2)"></i><i style="background:var(--seq-3)"></i>
+        <i style="background:var(--seq-4)"></i><i style="background:var(--seq-5)"></i>
+        <span>多</span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>各级别进度</h3>
+      <p class="cap">已听完的本数 / 总本数</p>
+      <div class="lrows" id="lrows"></div>
+    </div>
+    <div class="card">
+      <h3>收藏的书</h3>
+      <p class="cap">点书目里的 ☆ 可以收藏</p>
+      <div class="books" id="favs"></div>
+    </div>
+    <div class="card">
+      <h3>设置</h3>
+      <p class="cap">数据只存在这台电脑的浏览器里，不会上传</p>
+      <div class="rowtools" style="justify-content:flex-start">
+        <button class="cbtn wide" id="btnExport" style="height:58px">导出记录</button>
+        <button class="cbtn wide" id="btnReset" style="height:58px">清空记录</button>
+      </div>
+    </div>
+  </section>
+</div>
+<div id="tip"></div>
+
+<script>
+/* ============================================================
+   data + storage
+   ============================================================ */
+const DATA = __RAZ_DATA__;
+
+const BANDS = [
+  {name:"启蒙", sub:"AA – C", levels:["AA","A","B","C"],              c:"var(--band-1)"},
+  {name:"进阶", sub:"D – I", levels:["D","E","F","G","H","I"],        c:"var(--band-2)"},
+  {name:"中级", sub:"J – P", levels:["J","K","L","M","N","O","P"],    c:"var(--band-3)"},
+  {name:"高级", sub:"Q – Z", levels:"QRSTUVWXYZ".split(""),           c:"var(--band-4)"},
+];
+const LV_ORDER = BANDS.flatMap(b => b.levels);
+const LV = {};
+DATA.levels.forEach(r => { LV[r.level] = r; });
+const bandOf = lv => BANDS.find(b => b.levels.includes(lv));
+
+const KEY = "raz-kids-v1";
+const todayKey = () => {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0")
+       + "-" + String(d.getDate()).padStart(2,"0");
+};
+const dayKey = off => {
+  const d = new Date(); d.setDate(d.getDate() + off);
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0")
+       + "-" + String(d.getDate()).padStart(2,"0");
+};
+
+function load(){
+  try{
+    const s = JSON.parse(localStorage.getItem(KEY) || "null");
+    if (s && s.v === 1) return s;
+  }catch(e){}
+  return {v:1, done:{}, days:{}, favs:{}, last:null, auto:true, theme:"auto"};
+}
+let S = load();
+let saveT = 0;
+function save(){
+  clearTimeout(saveT);
+  saveT = setTimeout(() => {
+    try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){}
+  }, 250);
+}
+const epKey   = (bv,pg) => bv + ":" + pg;
+const isDone  = (bv,pg) => !!S.done[epKey(bv,pg)];
+const markDone= (bv,pg) => { S.done[epKey(bv,pg)] = Date.now(); save(); };
+
+/* ============================================================
+   tiny helpers
+   ============================================================ */
+const $  = s => document.querySelector(s);
+const el = (t, cls, html) => { const n = document.createElement(t);
+  if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
+const mmss = s => { s = Math.max(0, Math.round(s));
+  return Math.floor(s/60) + ":" + String(s%60).padStart(2,"0"); };
+const mins = s => Math.round(s/60);
+
+/* ============================================================
+   navigation
+   ============================================================ */
+function show(name){
+  ["home","level","player","stats"].forEach(n =>
+    $("#sc" + n[0].toUpperCase() + n.slice(1)).classList.toggle("on", n === name));
+  if (name !== "player") stopPlayback();
+  window.scrollTo({top:0, behavior:"instant"});
+}
+
+/* Leaving the player has to actually silence the iframe - a hidden frame keeps
+   playing, and a kid tapping 首页 expects the sound to stop. */
+function stopPlayback(){
+  stopClock();
+  playing = false;
+  clearTimeout(auto.timer); cancelAnimationFrame(auto.raf);
+  const f = $("#frame");
+  if (f && f.getAttribute("src") !== "about:blank") f.src = "about:blank";
+  paintPlay();
+}
+
+/* every navigation goes through here so each screen re-renders: progress,
+   checkmarks and totals must never be shown stale. */
+function go(name){
+  if (name === "home"){ renderHome(); show("home"); }
+  else if (name === "stats") renderStats();
+  else if (name === "level"){ if (cur.level) openLevel(cur.level); else go("home"); }
+  else show(name);
+}
+document.addEventListener("click", e => {
+  const g = e.target.closest("[data-go]");
+  if (g) go(g.dataset.go);
+});
+
+/* ============================================================
+   HOME
+   ============================================================ */
+function levelProgress(lv){
+  const r = LV[lv];
+  const total = r.episodes.length;
+  const done  = r.episodes.filter(e => isDone(r.bvid, e.i)).length;
+  return {total, done, pct: total ? done/total : 0};
+}
+
+function renderHome(){
+  $("#todayMin").textContent = mins(S.days[todayKey()] || 0);
+
+  if (S.last && LV[S.last.level]){
+    const r = LV[S.last.level], ep = r.episodes[S.last.idx];
+    $("#resumeLabel").textContent = "继续听";
+    $("#lastLabel").textContent = S.last.level + " · " + (ep ? ep.t : "");
+  } else {
+    $("#resumeLabel").textContent = "开始听";
+    $("#lastLabel").textContent = "还没开始，从 AA 开始吧";
+  }
+
+  const box = $("#bands"); box.innerHTML = "";
+  for (const b of BANDS){
+    const head = el("div","band");
+    head.appendChild(el("span","rule","")).style.background = b.c;
+    head.appendChild(el("h2",null,b.name));
+    head.appendChild(el("span","sub",b.sub + " · " + b.levels.length + " 级"));
+    box.appendChild(head);
+
+    const g = el("div","grid");
+    for (const lv of b.levels){
+      const r = LV[lv]; if (!r) continue;
+      const p = levelProgress(lv);
+      const c = el("button","lv");
+      c.style.setProperty("--c", b.c);
+      c.innerHTML =
+        '<span class="tint"></span>' +
+        '<div class="letter' + (lv.length>1?" sm":"") + '">' + lv + '</div>' +
+        '<div class="cnt tnum">' + p.done + " / " + p.total + ' 本</div>' +
+        '<div class="bar"><i style="width:' + (p.pct*100).toFixed(1) + '%"></i></div>' +
+        '<div class="pct tnum">' + Math.round(p.pct*100) + '%</div>';
+      c.onclick = () => openLevel(lv);
+      g.appendChild(c);
+    }
+    box.appendChild(g);
+  }
+
+  const src = DATA.source;
+  $("#srcNote").innerHTML =
+    '视频来自 B 站 UP 主 <b>' + src.uploader + '</b> 的合集《' + src.season_title + '》 · ' +
+    DATA.levels.length + ' 个级别 / ' + DATA.levels.reduce((a,r)=>a+r.episodes.length,0) + ' 集<br>' +
+    '数据更新于 ' + DATA.generated + ' · <a href="' + src.url + '" target="_blank" rel="noopener">去 UP 主主页 ↗</a>';
+}
+
+/* ============================================================
+   LEVEL
+   ============================================================ */
+let cur = {level:null, idx:0, rec:null};
+
+function openLevel(lv){
+  const r = LV[lv]; if (!r) return;
+  cur.level = lv;
+  const b = bandOf(lv), p = levelProgress(lv);
+  const badge = $("#lvBadge");
+  badge.style.setProperty("--c", b.c);
+  badge.textContent = lv;
+  $("#lvTitle").textContent = lv + " 级 · " + b.name;
+  $("#lvSub").innerHTML = '共 ' + r.episodes.length + ' 本 · 已听 <b>' + p.done + '</b> 本（'
+    + Math.round(p.pct*100) + '%）· 约 ' + (r.total_sec/3600).toFixed(1) + ' 小时'
+    + (r.gaps && r.gaps.length
+        ? '<br><span style="color:var(--ink-muted)">该合集缺第 '
+          + r.gaps.join("、") + ' 本</span>'
+        : '');
+
+  const box = $("#books"); box.innerHTML = "";
+  r.episodes.forEach((e, i) => {
+    const done = isDone(r.bvid, e.i);
+    const t = el("button","bk" + (done?" done":""));
+    t.innerHTML =
+      '<span class="no tnum">' + (e.n != null ? e.n : "·") + '</span>' +
+      '<span class="tx"><b>' + esc(e.t) + '</b><span>' + mmss(e.d)
+        + (e.x ? ' · 含说明' : '') + '</span></span>' +
+      '<span class="st' + (S.favs[epKey(r.bvid,e.i)] ? ' on':'') + '">'
+        + (S.favs[epKey(r.bvid,e.i)] ? '★':'☆') + '</span>';
+    t.onclick = () => openPlayer(lv, i);
+    box.appendChild(t);
+  });
+  show("level");
+}
+const esc = s => (s||"").replace(/[&<>"]/g, c =>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ============================================================
+   PLAYER
+   ============================================================ */
+let auto = {timer:null, started:0, dur:0, raf:0};
+let clock = {anchor:null, tick:null};
+
+function openPlayer(lv, idx){
+  const r = LV[lv]; if (!r) return;
+  cur.level = lv; cur.rec = r;
+  cur.idx = Math.max(0, Math.min(idx, r.episodes.length - 1));
+  show("player");
+  setEpisode();
+}
+
+function setEpisode(){
+  const r = cur.rec, e = r.episodes[cur.idx], b = bandOf(cur.level);
+  const stage = $("#stage");
+  stage.style.setProperty("--c", b.c);
+  stage.classList.toggle("mini", !!S.mini);
+
+  const pill = $("#pLevel"); pill.style.setProperty("--c", b.c); pill.textContent = cur.level;
+  $("#pTitle").textContent = (e.n != null ? e.n + ". " : "") + e.t;
+  $("#tPos").textContent = "第 " + (cur.idx+1) + " / " + r.episodes.length + " 本";
+  $("#btnStar").textContent = S.favs[epKey(r.bvid,e.i)] ? "★" : "☆";
+  $("#openBili").href = "https://www.bilibili.com/video/" + r.bvid + "/?p=" + e.i;
+
+  $("#frame").src = "https://player.bilibili.com/player.html?bvid=" + r.bvid
+    + "&page=" + e.i + "&autoplay=1&danmaku=0&high_quality=1&as_wide=1";
+
+  S.last = {level: cur.level, idx: cur.idx, t: Date.now()};
+  save();
+  playing = true;
+  paintPlay(); startClock(); armAuto();
+  paintAuto();
+}
+
+function paintPlay(){
+  $("#playIcon").innerHTML = playing
+    ? '<path d="M7 5h4v14H7zm6 0h4v14h-4z"/>'
+    : '<path d="M8 5v14l11-7z"/>';
+}
+
+/* --- auto-advance: we know each book's length, so advance on a timer --- */
+function armAuto(){
+  clearTimeout(auto.timer); cancelAnimationFrame(auto.raf);
+  if (!playing || !S.auto || auto.done){ $("#tBar").style.width = "0%"; return; }
+  const e = cur.rec.episodes[cur.idx];
+  auto.dur = (e.d || 60) * 1000 + 6000;      // book length + a beat
+  auto.started = performance.now();
+  const tickBar = () => {
+    const p = Math.min(1, (performance.now() - auto.started) / auto.dur);
+    $("#tBar").style.width = (p*100).toFixed(2) + "%";
+    if (p < 1) auto.raf = requestAnimationFrame(tickBar);
+  };
+  tickBar();
+  auto.timer = setTimeout(() => { markDone(cur.rec.bvid, cur.rec.episodes[cur.idx].i);
+    step(1); }, auto.dur);
+}
+function paintAuto(){
+  $("#tNext").textContent = "自动连播：" + (S.auto ? "开" : "关");
+  $("#swAuto").classList.toggle("on", !!S.auto);
+  $("#btnMini").textContent = S.mini ? "🗖" : "🗗";
+}
+
+function step(d){
+  const r = cur.rec;
+  const n = cur.idx + d;
+  if (n < 0){ setEpisode(); return; }
+  if (n >= r.episodes.length){
+    // finished the level - roll into the next one
+    const i = LV_ORDER.indexOf(cur.level);
+    if (i >= 0 && i < LV_ORDER.length - 1){
+      const nx = LV_ORDER[i+1];
+      cur.level = nx; cur.rec = LV[nx]; cur.idx = -1;
+      step(1);
+    } else { playing = false; paintPlay(); stopClock(); clearTimeout(auto.timer); }
+    return;
+  }
+  cur.idx = n; setEpisode();
+}
+
+/* --- listening clock: wall-clock seconds while playing --- */
+function startClock(){
+  if (clock.tick) return;
+  clock.last = Date.now();
+  clock.tick = setInterval(() => {
+    const now = Date.now();
+    const dt = (now - clock.last) / 1000;
+    clock.last = now;
+    if (!playing) return;
+    const k = todayKey();
+    S.days[k] = (S.days[k] || 0) + dt;
+    save(); paintToday();
+  }, 1000);
+}
+function stopClock(){ clearInterval(clock.tick); clock.tick = null; }
+function paintToday(){
+  const n = $("#todayMin"); if (n) n.textContent = mins(S.days[todayKey()] || 0);
+}
+
+/* ============================================================
+   STATS
+   ============================================================ */
+function streak(){
+  let n = 0, off = (S.days[todayKey()] || 0) > 0 ? 0 : -1;
+  for (;;){ const k = dayKey(off);
+    if ((S.days[k] || 0) > 0){ n++; off--; } else break; }
+  return n;
+}
+function renderStats(){
+  const tk = todayKey();
+  const total = Object.values(S.days).reduce((a,b) => a+b, 0);
+  const week = [...Array(7).keys()].reduce((a,_,i) => a + (S.days[dayKey(-i)] || 0), 0);
+  const doneCount = Object.keys(S.done).length;
+
+  const tiles = [
+    {k:"今天",   v:mins(S.days[tk]||0), s:"分钟", big:true},
+    {k:"连续打卡", v:streak(),          s:"天"},
+    {k:"最近 7 天", v:mins(week),        s:"分钟"},
+    {k:"累计",   v:(total/3600).toFixed(1), s:"小时"},
+    {k:"已听完", v:doneCount,           s:"本"},
+  ];
+  $("#tiles").innerHTML = tiles.map(t =>
+    '<div class="tile"><div class="k">' + t.k + '</div>' +
+    '<div class="v tnum"' + (t.big ? ' style="color:var(--band-1)"' : '') + '>' + t.v + '</div>' +
+    '<div class="s">' + t.s + '</div></div>').join("");
+
+  /* --- 14 day bars: gridlines give the empty state a readable scale --- */
+  const days = [...Array(14).keys()].map(i => 14 - 1 - i).map(o => ({o, k:dayKey(-o)}));
+  const vals = days.map(d => mins(S.days[d.k] || 0));
+  const peak = Math.max(...vals);
+  const max = Math.max(30, peak);
+  const grid = [50, 100].map(p =>
+    '<i class="gl" style="bottom:' + p + '%"></i>').join("");
+  $("#bars").innerHTML = grid +
+    '<span class="ymax">' + max + ' 分</span>' +
+    days.map((d,i) => {
+      const v = vals[i], h = Math.max(1.5, (v/max)*100);
+      return '<div class="col' + (v ? "" : " zero") +
+        '" data-tip="' + d.k + ' · ' + v + ' 分钟">' +
+        '<div class="b" style="height:' + h + '%"></div>' +
+        '<span class="d">' + (d.o === 0 ? "今天" : (d.o + "天")) + '</span></div>';
+    }).join("");
+  $("#barCap").textContent = peak > 0 ? "每天听英语的分钟数"
+    : "还没有记录 — 今天开始听就有了";
+
+  /* --- 12 week heatmap --- */
+  const cells = [];
+  for (let i = 83; i >= 0; i--){
+    const k = dayKey(-i), v = mins(S.days[k] || 0);
+    cells.push({k, v});
+  }
+  const lvl = v => v <= 0 ? 0 : v <= 5 ? 1 : v <= 15 ? 2 : v <= 30 ? 3 : v <= 60 ? 4 : 5;
+  const NUM = ["--empty","--seq-1","--seq-2","--seq-3","--seq-4","--seq-5"];
+  $("#heat").innerHTML = cells.map(c =>
+    '<i style="background:var(' + NUM[lvl(c.v)] + ')" data-tip="' + c.k + ' · ' + c.v + ' 分钟"></i>'
+  ).join("");
+
+  /* --- per level rows (also the table view) --- */
+  $("#lrows").innerHTML = LV_ORDER.filter(l => LV[l]).map(l => {
+    const p = levelProgress(l), b = bandOf(l);
+    return '<div class="lrow" style="--c:' + b.c + '">' +
+      '<span class="nm">' + l + '</span>' +
+      '<span class="tr"><i style="width:' + (p.pct*100).toFixed(1) + '%"></i></span>' +
+      '<span class="n tnum">' + p.done + ' / ' + p.total + '</span></div>';
+  }).join("");
+
+  /* --- favourites --- */
+  const favBox = $("#favs"); favBox.innerHTML = "";
+  const keys = Object.keys(S.favs);
+  if (!keys.length) favBox.appendChild(el("p","empty-note","还没有收藏，去书目里点 ☆ 吧"));
+  keys.slice(0, 60).forEach(k => {
+    const [bv, pg] = [k.slice(0, k.lastIndexOf(":")), +k.slice(k.lastIndexOf(":")+1)];
+    const r = DATA.levels.find(x => x.bvid === bv); if (!r) return;
+    const i = r.episodes.findIndex(e => e.i === pg); if (i < 0) return;
+    const e = r.episodes[i], done = isDone(bv, pg);
+    const t = el("button","bk" + (done ? " done" : ""));
+    t.innerHTML = '<span class="no tnum">' + r.level + '</span>' +
+      '<span class="tx"><b>' + esc(e.t) + '</b><span>' + mmss(e.d) + '</span></span>' +
+      '<span class="st on">★</span>';
+    t.onclick = () => openPlayer(r.level, i);
+    favBox.appendChild(t);
+  });
+  show("stats");
+}
+
+/* ============================================================
+   wiring
+   ============================================================ */
+let playing = false;
+
+$("#btnResume").onclick = () => {
+  if (S.last && LV[S.last.level]) openPlayer(S.last.level, S.last.idx);
+  else openPlayer("AA", 0);
+};
+$("#btnStats").onclick = renderStats;
+$("#btnNext").onclick = () => step(1);
+$("#btnPrev").onclick = () => step(-1);
+$("#btnPlay").onclick = () => {
+  playing = !playing; paintPlay();
+  if (playing){ startClock(); armAuto(); }
+  else { clearTimeout(auto.timer); cancelAnimationFrame(auto.raf); $("#tBar").style.width = "0%"; }
+};
+$("#swAuto").onclick = () => { S.auto = !S.auto; save(); paintAuto(); armAuto(); };
+$("#btnMini").onclick = () => {
+  S.mini = !S.mini; save();
+  $("#stage").classList.toggle("mini", !!S.mini); paintAuto();
+};
+$("#btnStar").onclick = () => {
+  const r = cur.rec, e = r.episodes[cur.idx], k = epKey(r.bvid, e.i);
+  if (S.favs[k]) delete S.favs[k]; else S.favs[k] = 1;
+  save(); $("#btnStar").textContent = S.favs[k] ? "★" : "☆";
+};
+$("#btnTheme").onclick = () => {
+  const order = ["auto","light","dark"];
+  S.theme = order[(order.indexOf(S.theme || "auto") + 1) % 3];
+  save(); applyTheme();
+};
+function applyTheme(){
+  const t = S.theme || "auto";
+  document.documentElement.setAttribute("data-theme", t === "auto" ? "" : t);
+  if (t === "auto") document.documentElement.removeAttribute("data-theme");
+  $("#btnTheme").textContent = t === "dark" ? "☀️" : t === "light" ? "🌙" : "🌗";
+}
+$("#btnExport").onclick = () => {
+  const blob = new Blob([JSON.stringify(S, null, 1)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "raz-磨耳朵记录-" + todayKey() + ".json";
+  a.click(); URL.revokeObjectURL(a.href);
+};
+$("#btnReset").onclick = () => {
+  if (!confirm("清空所有收听记录和收藏？这个不能撤销。")) return;
+  S = {v:1, done:{}, days:{}, favs:{}, last:null, auto:S.auto, theme:S.theme};
+  save(); renderStats();
+};
+document.addEventListener("keydown", e => {
+  if (!$("#scPlayer").classList.contains("on")) return;
+  if (e.key === "ArrowRight") step(1);
+  if (e.key === "ArrowLeft")  step(-1);
+  if (e.key === " ") { e.preventDefault(); $("#btnPlay").click(); }
+});
+
+/* tooltip for chart marks */
+const tip = $("#tip");
+document.addEventListener("mouseover", e => {
+  const t = e.target.closest("[data-tip]"); if (!t) return;
+  tip.textContent = t.dataset.tip; tip.classList.add("on");
+});
+document.addEventListener("mousemove", e => {
+  if (!tip.classList.contains("on")) return;
+  tip.style.left = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 10) + "px";
+  tip.style.top  = (e.clientY - tip.offsetHeight - 10) + "px";
+});
+document.addEventListener("mouseout", e => {
+  if (e.target.closest("[data-tip]")) tip.classList.remove("on");
+});
+
+document.addEventListener("visibilitychange", () => { clock.last = Date.now(); });
+
+/* ============================================================
+   hash routing - #stats / #lv=AA / #play=AA&i=12  (bookmarkable,
+   so a desktop shortcut can open straight into a level)
+   ============================================================ */
+function applyHash(){
+  const h = (location.hash || "").replace(/^#/, "");
+  if (!h) return go("home");
+  if (h === "stats" || h === "fav") return go("stats");
+  let m = h.match(/^lv=([A-Za-z]{1,2})$/);
+  if (m){ const lv = m[1].toUpperCase(); if (LV[lv]) return openLevel(lv); }
+  m = h.match(/^play=([A-Za-z]{1,2})&i=(\d+)$/);
+  if (m){ const lv = m[1].toUpperCase(); if (LV[lv]) return openPlayer(lv, +m[2]); }
+  go("home");
+}
+window.addEventListener("hashchange", applyHash);
+
+applyTheme();
+applyHash();
+</script>
+</body>
+</html>

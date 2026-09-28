@@ -1,0 +1,12 @@
+# 别把宿主机上的杂物塞进构建上下文。
+**/__pycache__
+**/*.pyc
+tools/raw
+tools/_cprof*
+tools/_ovf.html
+
+.git
+.gitignore
+
+# 这些是 Windows 上直接双击用的，跟镜像无关。
+*.bat

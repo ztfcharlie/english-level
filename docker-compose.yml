@@ -1,0 +1,30 @@
+# 必须显式写项目名：compose 默认拿目录名当项目名，而这个目录叫「英语分级」，
+# 非 ASCII 会让它直接报 "project name must not be empty" 而拒绝启动。
+name: raz-player
+
+services:
+  player:
+    build: .
+    image: raz-player:latest
+    container_name: raz-player
+
+    ports:
+      # 打开 http://<这台机器的地址>:8899
+      #   8899 被占用 -> 改左边那个数字（右边 80 是容器内部的，别动）
+      #   只想本机访问、不给局域网 -> RAZ_HOST=127.0.0.1 docker compose up -d
+      - "${RAZ_HOST:-0.0.0.0}:${RAZ_PORT:-8899}:80"
+
+    # 开机自启 + 崩了自动重启，这样"每天早上打开就能听"不用碰命令行。
+    restart: unless-stopped
+
+  # 可选：数据同步工具（check_sync.py 那一套）。平时不会启动，
+  # 只有显式 `docker compose run` 才会跑。见 README 的「更新数据」一节。
+  tools:
+    build:
+      context: .
+      dockerfile: Dockerfile.tools
+    image: raz-tools:latest
+    profiles: ["tools"]
+    working_dir: /app/tools
+    volumes:
+      - ./:/app
